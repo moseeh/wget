@@ -37,4 +37,8 @@ pub struct Cli {
     /// Limit download rate (--rate-limit=200k/2M)
     #[arg(long, help = "Limit download rate (e.g., 200k, 2M)")]
     pub rate_limit: Option<String>,
+
+    /// Input file with list of URLs to download (-i)
+    #[arg(short = 'i', long, help = "File containing list of URLs to download")]
+    pub input_file: Option<PathBuf>,
 }
