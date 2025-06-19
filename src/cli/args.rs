@@ -33,4 +33,8 @@ pub struct Cli {
         help = "Download in background (output to wget-log)"
     )]
     pub background: bool,
+
+    /// Limit download rate (--rate-limit=200k/2M)
+    #[arg(long, help = "Limit download rate (e.g., 200k, 2M)")]
+    pub rate_limit: Option<String>,
 }
