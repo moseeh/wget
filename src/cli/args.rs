@@ -25,4 +25,12 @@ pub struct Cli {
         conflicts_with = "output"
     )]
     pub directory_prefix: Option<PathBuf>,
+
+    /// Download in background (-B)
+    #[arg(
+        short = 'B',
+        long,
+        help = "Download in background (output to wget-log)"
+    )]
+    pub background: bool,
 }
