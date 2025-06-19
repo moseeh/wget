@@ -45,4 +45,16 @@ pub struct Cli {
     /// Enable mirror mode (--mirror)
     #[arg(long, help = "Enable website mirroring")]
     pub mirror: bool,
+
+    /// Reject file suffixes during mirror (-R)
+    #[arg(short = 'R', long, help = "Comma-separated list of file suffixes to reject")]
+    pub reject_suffixes: Option<String>,
+
+    /// Exclude specific directories during mirror (-X)
+    #[arg(short = 'X', long, help = "Comma-separated list of directories to exclude")]
+    pub exclude_dirs: Option<String>,
+
+    /// Convert links in mirrored pages to offline-friendly versions (--convert-links)
+    #[arg(long, help = "Convert links in mirrored files for offline viewing")]
+    pub convert_links: bool,
 }
