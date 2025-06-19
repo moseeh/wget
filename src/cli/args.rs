@@ -16,4 +16,13 @@ pub struct Cli {
         conflicts_with = "directory_prefix"
     )]
     pub output: Option<PathBuf>,
+    
+    /// Directory to save the downloaded file (-P)
+    #[arg(
+        short = 'P',
+        long,
+        help = "Directory prefix to save files to",
+        conflicts_with = "output"
+    )]
+    pub directory_prefix: Option<PathBuf>,
 }
