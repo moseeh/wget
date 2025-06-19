@@ -16,7 +16,7 @@ pub struct Cli {
         conflicts_with = "directory_prefix"
     )]
     pub output: Option<PathBuf>,
-    
+
     /// Directory to save the downloaded file (-P)
     #[arg(
         short = 'P',
@@ -47,11 +47,19 @@ pub struct Cli {
     pub mirror: bool,
 
     /// Reject file suffixes during mirror (-R)
-    #[arg(short = 'R', long, help = "Comma-separated list of file suffixes to reject")]
+    #[arg(
+        short = 'R',
+        long,
+        help = "Comma-separated list of file suffixes to reject"
+    )]
     pub reject_suffixes: Option<String>,
 
     /// Exclude specific directories during mirror (-X)
-    #[arg(short = 'X', long, help = "Comma-separated list of directories to exclude")]
+    #[arg(
+        short = 'X',
+        long,
+        help = "Comma-separated list of directories to exclude"
+    )]
     pub exclude_dirs: Option<String>,
 
     /// Convert links in mirrored pages to offline-friendly versions (--convert-links)
