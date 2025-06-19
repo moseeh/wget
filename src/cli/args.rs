@@ -41,4 +41,8 @@ pub struct Cli {
     /// Input file with list of URLs to download (-i)
     #[arg(short = 'i', long, help = "File containing list of URLs to download")]
     pub input_file: Option<PathBuf>,
+
+    /// Enable mirror mode (--mirror)
+    #[arg(long, help = "Enable website mirroring")]
+    pub mirror: bool,
 }
