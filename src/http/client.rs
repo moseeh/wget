@@ -53,5 +53,46 @@ impl HttpClient {
         }
         Ok(response)
     }
-    
+
+    pub async fn download_to_file(
+        &self,
+        url: &str,
+        file_path: &std::path::Path,
+    ) -> Result<u64, DownloadError> {
+        let response = self.download(url).await?;
+        let content_length = response.content_length().unwrap_or(0);
+        if content_length > 0 {
+            println!(
+                "content size: {} [~{:.2}MB]",
+                content_length,
+                content_length as f64 / 1_048_576.0
+            );
+        }
+
+        println!("saving file to: {}", file_path.display());
+
+        let mut file = File::create(file_path).await.map_err(|e| DownloadError {
+            message: format!("Failed to create file: {}", e),
+        })?;
+
+        let mut stream = response.bytes_stream();
+        let mut download = 0u64;
+
+        use futures_util::StreanExt;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| DownloadError {
+                message: format!("Failed to read chunk: {}", e),
+            })?;
+            file.write_all(&chunk).await.map_err(|e| DownloadError {
+                message: format!("Failed to write chunk: {}", e),
+            })?;
+            download += chunk.len() as u64;
+        }
+        file.flush().await.map_err(|e| DownloadError {
+            message: format!("Failed to flush file: {}", e),
+        })?;
+
+        println!("Downloaded [{}]", url);
+        Ok(downloaded)
+    }
 }
