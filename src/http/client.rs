@@ -78,7 +78,7 @@ impl HttpClient {
         let mut stream = response.bytes_stream();
         let mut download = 0u64;
 
-        use futures_util::StreanExt;
+        use futures_util::StreamExt;
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| DownloadError {
                 message: format!("Failed to read chunk: {}", e),
@@ -93,6 +93,6 @@ impl HttpClient {
         })?;
 
         println!("Downloaded [{}]", url);
-        Ok(downloaded)
+        Ok(download)
     }
 }
