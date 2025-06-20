@@ -66,3 +66,57 @@ pub struct Cli {
     #[arg(long, help = "Convert links in mirrored files for offline viewing")]
     pub convert_links: bool,
 }
+
+impl Cli {
+    pub fn validate(&self) -> Result<(), String> {
+        // Must have either direct URLs or an input file
+        if self.urls.is_empty() && self.input_file.is_none() {
+            return Err("Provide at least one URL or use -i with a file containing URLs.".into());
+        }
+
+        // Input file must exist
+        if let Some(file) = &self.input_file {
+            if !file.exists() {
+                return Err(format!("Input file {:?} does not exist", file));
+            }
+        }
+
+        // Directory must exist if -P is used
+        if let Some(dir) = &self.directory_prefix {
+            if !dir.exists() || !dir.is_dir() {
+                return Err(format!(
+                    "Directory {:?} does not exist or is not a folder",
+                    dir
+                ));
+            }
+        }
+
+        // Validate rate-limit format (e.g., 200k or 2M)
+        if let Some(rate) = &self.rate_limit {
+            let valid = rate.ends_with('k') || rate.ends_with('M');
+            if !valid {
+                return Err("Rate limit must end with 'k' or 'M' (e.g., 400k, 2M)".into());
+            }
+            let number_part = &rate[..rate.len() - 1];
+            if number_part.parse::<u64>().is_err() {
+                return Err("Rate limit must start with a valid number (e.g., 400k)".into());
+            }
+        }
+
+        // Mirror mode validation
+        if self.mirror {
+            if self.urls.len() != 1 {
+                return Err("Mirror mode requires exactly one URL".into());
+            }
+        } else {
+            // These flags only make sense *with* mirror
+            if self.reject_suffixes.is_some() || self.exclude_dirs.is_some() || self.convert_links {
+                return Err(
+                    "Flags -R, -X, and --convert-links can only be used with --mirror".into(),
+                );
+            }
+        }
+
+        Ok(())
+    }
+}
