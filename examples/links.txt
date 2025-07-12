@@ -1,0 +1,18 @@
+https://examplefile.com/text/txt/1-mb-txt              # 1 MB TXT (text)
+https://examplefile.com/document/pdf/1-mb-pdf         # 1 MB PDF
+https://file-examples.com/wp-content/uploads/2017/10/file-example_PDF_500_kB.pdf   # 500 kB PDF
+https://file-examples.com/wp-content/uploads/2017/10/file-example_PDF_150_kB.pdf   # 150 kB PDF
+https://www.thinkbroadband.com/download/5MB-test.zip  # 5 MB binary (random data)
+https://www.thinkbroadband.com/download/10MB-test.zip # 10 MB
+https://www.thinkbroadband.com/download/20MB-test.zip # 20 MB
+https://www.thinkbroadband.com/download/50MB-test.zip # 50 MB
+https://www.thinkbroadband.com/download/100MB-test.zip# 100 MB
+https://www.thinkbroadband.com/download/200MB-test.zip# 200 MB
+https://www.thinkbroadband.com/download/512MB-test.zip# 512 MB
+https://www.thinkbroadband.com/download/1GB-test.zip  # 1 GB
+https://www.thinkbroadband.com/download/2GB-test.zip  # 2 GB
+https://www.thinkbroadband.com/download/5GB-test.zip  # 5 GB
+https://ash-speed.hetzner.com/100MB.bin               # 100 MB bin
+https://ash-speed.hetzner.com/1GB.bin                 # 1 GB bin
+https://ash-speed.hetzner.com/10GB.bin                # 10 GB bin
+https://testfile.org/downloads/pdf-sample.pdf         # testfile.org generic PDF (sizes vary; choose larger options)
