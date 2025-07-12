@@ -28,7 +28,7 @@ impl HttpClient {
         }
     }
     pub async fn download(&self, url: &str) -> Result<Response, DownloadError> {
-        println!("sending request, awaiting response...");
+        print!("sending request, awaiting response... ");
 
         let response = self
             .client
