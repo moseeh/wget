@@ -10,3 +10,4 @@ tokio = { version = "1.0", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 url = "2.4"
+indicatif = "0.17"
