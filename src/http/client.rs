@@ -1,3 +1,4 @@
+use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, Response};
 use std::error::Error;
 use std::fmt;
@@ -68,8 +69,15 @@ impl HttpClient {
                 content_length as f64 / 1_048_576.0
             );
         }
+        println!("saving file to: ./{}", file_path.display());
 
-        println!("saving file to: {}", file_path.display());
+        let progress_bar = ProgressBar::new(content_length);
+        progress_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{bytes}/{total_bytes} [{bar:80.cyan/red}] {eta_precise}")
+                .unwrap()
+                .progress_chars("#>-"),
+        );
 
         let mut file = File::create(file_path).await.map_err(|e| DownloadError {
             message: format!("Failed to create file: {}", e),
@@ -87,11 +95,13 @@ impl HttpClient {
                 message: format!("Failed to write chunk: {}", e),
             })?;
             download += chunk.len() as u64;
+            progress_bar.set_position(download);
         }
         file.flush().await.map_err(|e| DownloadError {
             message: format!("Failed to flush file: {}", e),
         })?;
 
+        println!();
         println!("Downloaded [{}]", url);
         Ok(download)
     }
