@@ -1,10 +1,16 @@
-http://cachefly.cachefly.net/1mb.test       # 1 MB test file (CacheFly CDN) 
-http://cachefly.cachefly.net/10mb.test      # 10 MB test file 
-http://cachefly.cachefly.net/100mb.test     # 100 MB test file
-https://fsn1-speed.hetzner.com/100MB.bin    # 100 MB binary (Hetzner FSN1) 
-https://fsn1-speed.hetzner.com/1GB.bin      # 1 GB binary (Hetzner FSN1) 
-https://fsn1-speed.hetzner.com/10GB.bin     # 10 GB binary (Hetzner FSN1) 
-https://ash-speed.hetzner.com/100MB.bin     # 100 MB binary (Hetzner ASH) 
-https://hel1-speed.hetzner.com/100MB.bin    # 100 MB binary (Hetzner HEL1) 
-https://nbg1-speed.hetzner.com/100MB.bin    # 100 MB binary (Hetzner NBG1) 
-https://hil-speed.hetzner.com/100MB.bin     # 100 MB binary (Hetzner HIL) 
+http://cachefly.cachefly.net/1mb.test
+http://cachefly.cachefly.net/10mb.test
+http://cachefly.cachefly.net/100mb.test
+https://fsn1-speed.hetzner.com/100MB.bin
+https://fsn1-speed.hetzner.com/1GB.bin
+https://fsn1-speed.hetzner.com/10GB.bin
+https://ash-speed.hetzner.com/100MB.bin
+https://hel1-speed.hetzner.com/100MB.bin
+https://nbg1-speed.hetzner.com/100MB.bin
+https://hil-speed.hetzner.com/100MB.bin
+https://httpbin.org/bytes/1024
+https://httpbin.org/bytes/2048
+https://httpbin.org/bytes/4096
+https://httpbin.org/json
+https://httpbin.org/uuid
+https://httpbin.org/base64/SFRUUEJJTiBpcyBhd2Vzb21l
