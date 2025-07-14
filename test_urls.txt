@@ -1,0 +1,12 @@
+# Test URLs for wget -i flag
+# This is a comment and should be ignored
+
+
+
+# Another comment
+https://httpbin.org/json
+https://httpbin.org/uuid
+
+# Empty lines should be ignored
+
+https://httpbin.org/base64/SFRUUEJJTiBpcyBhd2Vzb21l

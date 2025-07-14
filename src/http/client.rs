@@ -18,6 +18,7 @@ impl fmt::Display for DownloadError {
 
 impl Error for DownloadError {}
 
+#[derive(Clone)]
 pub struct HttpClient {
     client: Client,
 }
@@ -47,6 +48,26 @@ impl HttpClient {
             status.canonical_reason().unwrap_or("")
         );
 
+        if !status.is_success() {
+            return Err(DownloadError {
+                message: format!("HTTP error: {}", status),
+            });
+        }
+        Ok(response)
+    }
+
+    /// Silent version of download that doesn't print status messages
+    pub async fn download_silent(&self, url: &str) -> Result<Response, DownloadError> {
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| DownloadError {
+                message: format!("Failed to send request: {}", e),
+            })?;
+
+        let status = response.status();
         if !status.is_success() {
             return Err(DownloadError {
                 message: format!("HTTP error: {}", status),
