@@ -56,6 +56,26 @@ impl HttpClient {
         Ok(response)
     }
 
+    /// Silent version of download that doesn't print status messages
+    pub async fn download_silent(&self, url: &str) -> Result<Response, DownloadError> {
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| DownloadError {
+                message: format!("Failed to send request: {}", e),
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(DownloadError {
+                message: format!("HTTP error: {}", status),
+            });
+        }
+        Ok(response)
+    }
+
     pub async fn download_to_file(
         &self,
         url: &str,
