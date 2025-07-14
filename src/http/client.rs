@@ -18,6 +18,7 @@ impl fmt::Display for DownloadError {
 
 impl Error for DownloadError {}
 
+#[derive(Clone)]
 pub struct HttpClient {
     client: Client,
 }
