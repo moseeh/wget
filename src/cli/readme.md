@@ -1,8 +1,8 @@
-# 🧾 `cli` Module — Argument Parsing for wget-rs
+# `cli` Module — Argument Parsing for wget-rs
 
 This module provides the command-line interface for the `wget-rs` application. It defines the structure of supported flags and arguments using the [`clap`](https://docs.rs/clap) crate.
 
-## ✨ Features
+## Features
 
 * Argument parsing using `#[derive(Parser)]`
 * Manual validation via `Cli::validate()`
@@ -18,12 +18,12 @@ This module provides the command-line interface for the `wget-rs` application. I
     * Excluded directories (`-X`)
     * Offline link conversion (`--convert-links`)
 
-## 📁 Structure
+## Structure
 
 * `cli/args.rs`: Defines the `Cli` struct and its fields using `clap`
 * `cli/mod.rs`: Exports the `Cli` struct for external use
 
-## ✅ How to Use
+## How to Use
 
 In `main.rs`:
 
@@ -39,7 +39,7 @@ fn main() {
 }
 ```
 
-## 📚 Notes
+## Notes
 
 * `Cli::parse()` comes from the `Parser` trait, so be sure to `use clap::Parser`
 * `Cli::validate()` provides additional checks not enforced by `clap`, like ensuring paths exist or validating rate formats

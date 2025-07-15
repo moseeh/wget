@@ -1,8 +1,8 @@
-# 📁 `io` Module — Input/Output Operations for wget-rs
+# `io` Module — Input/Output Operations for wget-rs
 
 This module handles input/output operations for the `wget-rs` application, primarily focused on reading URLs from input files for the `-i` flag functionality.
 
-## ✨ Features
+## Features
 
 * Asynchronous file reading using [`tokio`](https://docs.rs/tokio)
 * URL parsing and validation from text files
@@ -10,12 +10,12 @@ This module handles input/output operations for the `wget-rs` application, prima
 * Error handling with detailed error messages
 * Support for standard text file formats
 
-## 📁 Structure
+## Structure
 
 * `io/input.rs`: File reading and URL parsing functionality
 * `io/mod.rs`: Exports the input reading functions
 
-## 🔧 Core Components
+## Core Components
 
 ### `read_urls_from_file(path)`
 The main function for reading URLs from input files:
@@ -28,7 +28,7 @@ The main function for reading URLs from input files:
   - Provides warnings for invalid URLs
   - Returns error if no valid URLs found
 
-## ✅ How to Use
+## How to Use
 
 ```rust
 use crate::io::read_urls_from_file;
@@ -37,7 +37,7 @@ use std::path::Path;
 #[tokio::main]
 async fn main() {
     let file_path = Path::new("downloads.txt");
-    
+
     match read_urls_from_file(file_path).await {
         Ok(urls) => {
             println!("Found {} URLs:", urls.len());
@@ -50,7 +50,7 @@ async fn main() {
 }
 ```
 
-## 📄 Input File Format
+## Input File Format
 
 The input file should contain one URL per line:
 
@@ -63,13 +63,13 @@ https://example.com/file2.tar.gz
 https://example.com/file3.pdf
 ```
 
-## 🔍 URL Validation
+## URL Validation
 
 * **Valid**: URLs starting with `http://` or `https://`
 * **Invalid**: Relative URLs, FTP URLs, or malformed URLs
 * **Behavior**: Invalid URLs are skipped with a warning message
 
-## 📚 Notes
+## Notes
 
 * Uses `tokio::fs::File` and `BufReader` for efficient async file reading
 * Integrates with the HTTP module's `DownloadError` type

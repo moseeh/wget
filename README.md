@@ -1,35 +1,35 @@
-# 🚀 wget-rs — A Modern wget Implementation in Rust
+# wget-rs — A Modern wget Implementation in Rust
 
 A high-performance, feature-rich implementation of the classic `wget` utility, built with Rust for speed, safety, and concurrency.
 
-## ✨ Features
+## Features
 
-### 🌐 Core Download Functionality
+### Core Download Functionality
 * **Single file downloads** with progress tracking
 * **Multiple file downloads** from command line arguments
 * **Batch downloads** from input files (`-i` flag)
 * **Sequential processing** for command line URLs (wget-compatible)
 * **Concurrent processing** for file-based URLs (performance optimized)
 
-### 🎛️ Advanced Options
+### Advanced Options
 * **Custom output names** (`-O` flag)
 * **Directory specification** (`-P` flag)
 * **Background downloads** (`-B` flag) with logging
 * **Rate limiting** (`--rate-limit`) with k/M suffixes
 * **Website mirroring** (`--mirror`) with filtering options
 
-### 🔧 Technical Highlights
+### Technical Highlights
 * **Asynchronous I/O** using Tokio for high performance
 * **Streaming downloads** for memory efficiency
 * **Multi-progress bars** for concurrent download tracking
 * **Two-phase download process** for clean user experience
 * **Comprehensive error handling** with detailed reporting
 
-## 🏗️ Architecture
+## Architecture
 
 The project is organized into focused modules:
 
-### 📁 Module Structure
+### Module Structure
 
 * **[`cli/`](src/cli/readme.md)** — Command-line argument parsing and validation
 * **[`http/`](src/http/readme.md)** — HTTP client and network operations
@@ -37,7 +37,7 @@ The project is organized into focused modules:
 * **[`download/`](src/download/readme.md)** — Concurrent download management and progress tracking
 * **[`utils/`](src/utils/readme.md)** — Utility functions and helpers
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 ```bash
@@ -64,7 +64,7 @@ cargo build --release
 ./wget -B --rate-limit=500k https://example.com/largefile.zip
 ```
 
-## 📋 Command Line Options
+## Command Line Options
 
 | Flag | Description | Example |
 |------|-------------|---------|
@@ -77,7 +77,7 @@ cargo build --release
 | `-R <suffixes>` | Reject file types | `./wget --mirror -R=jpg,gif <url>` |
 | `-X <dirs>` | Exclude directories | `./wget --mirror -X=/tmp,/cache <url>` |
 
-## 🎯 Key Differentiators
+## Key Differentiators
 
 ### vs. Original wget
 * **Concurrent file downloads** from input files (original wget is sequential)
@@ -91,7 +91,7 @@ cargo build --release
 * **Async/await architecture** for efficiency
 * **Modular design** for maintainability
 
-## 🔄 Download Behavior
+## Download Behavior
 
 ### Command Line URLs (Sequential)
 ```bash
@@ -106,7 +106,7 @@ cargo build --release
 # Phase 2: Download all files simultaneously
 ```
 
-## 📊 Example Output
+## Example Output
 
 ### Single Download
 ```
@@ -142,7 +142,7 @@ Concurrent Download Summary:
 finished at 2024-01-15 10:30:52
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Run Tests
 ```bash
@@ -166,7 +166,7 @@ echo -e "https://httpbin.org/bytes/1024\nhttps://httpbin.org/json" > test.txt
 cat wget-log
 ```
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 * Rust 1.70+
@@ -193,7 +193,7 @@ cargo build --release
 RUST_LOG=debug cargo run -- <url>
 ```
 
-## 📚 Documentation
+## Documentation
 
 Each module contains detailed documentation:
 * **[CLI Module](src/cli/readme.md)** — Argument parsing and validation
@@ -202,7 +202,7 @@ Each module contains detailed documentation:
 * **[Download Module](src/download/readme.md)** — Concurrent download management
 * **[Utils Module](src/utils/readme.md)** — Utility functions and helpers
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -210,11 +210,11 @@ Each module contains detailed documentation:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 * Original GNU wget team for the inspiration
 * Rust community for excellent async ecosystem
@@ -222,4 +222,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**Built with ❤️ and ⚡ Rust**
+**Built with Rust**
