@@ -65,6 +65,38 @@ pub struct Cli {
     /// Convert links in mirrored pages to offline-friendly versions (--convert-links)
     #[arg(long, help = "Convert links in mirrored files for offline viewing")]
     pub convert_links: bool,
+
+    /// Continue partial downloads (-c)
+    #[arg(short = 'c', long, help = "Continue partial downloads")]
+    pub continue_download: bool,
+
+    /// Number of retries (--tries)
+    #[arg(long, default_value = "3", help = "Number of retries on failure")]
+    pub tries: u32,
+
+    /// Wait time between retries (--waitretry)
+    #[arg(long, default_value = "1", help = "Wait seconds between retries")]
+    pub waitretry: u64,
+
+    /// Quiet mode (-q)
+    #[arg(short = 'q', long, help = "Quiet mode (no output)")]
+    pub quiet: bool,
+
+    /// Verbose mode (-v)
+    #[arg(short = 'v', long, help = "Verbose output")]
+    pub verbose: bool,
+
+    /// Debug mode (-d)
+    #[arg(short = 'd', long, help = "Debug output")]
+    pub debug: bool,
+
+    /// Timeout in seconds (--timeout)
+    #[arg(long, default_value = "30", help = "Timeout in seconds")]
+    pub timeout: u64,
+
+    /// User agent string (--user-agent)
+    #[arg(long, help = "User agent string")]
+    pub user_agent: Option<String>,
 }
 
 impl Cli {
@@ -93,14 +125,16 @@ impl Cli {
 
         // Validate rate-limit format (e.g., 200k or 2M)
         if let Some(rate) = &self.rate_limit {
-            let valid = rate.ends_with('k') || rate.ends_with('M');
+            let valid = rate.ends_with('k') || rate.ends_with('M') || rate.parse::<u64>().is_ok();
             if !valid {
-                return Err("Rate limit must end with 'k' or 'M' (e.g., 400k, 2M)".into());
+                return Err("Rate limit must be a number or end with 'k'/'M' (e.g., 400k, 2M)".into());
             }
-            let number_part = &rate[..rate.len() - 1];
-            if number_part.parse::<u64>().is_err() {
-                return Err("Rate limit must start with a valid number (e.g., 400k)".into());
-            }
+        }
+
+        // Validate output level conflicts
+        let output_flags = [self.quiet, self.verbose, self.debug].iter().filter(|&&x| x).count();
+        if output_flags > 1 {
+            return Err("Only one of --quiet, --verbose, or --debug can be specified".into());
         }
 
         // Mirror mode validation

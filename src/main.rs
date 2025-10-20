@@ -1,26 +1,87 @@
+use background::BackgroundProcessor;
 use chrono::Utc;
 use clap::Parser;
 use download::ConcurrentDownloadManager;
+use mirror::MirrorCrawler;
+use output::{OutputLevel, OutputLogger};
 use std::path::PathBuf;
 
+mod background;
 mod cli;
 mod download;
 mod http;
 mod io;
+mod mirror;
+mod output;
+mod rate;
+mod resume;
+mod retry;
 mod utils;
 
 #[tokio::main]
 async fn main() {
-    let start_time = Utc::now();
-    println!("start at {}", start_time.format("%Y-%m-%d %H:%M:%S"));
-
     let args = cli::Cli::parse();
     if let Err(e) = args.validate() {
         eprintln!("Argument error: {}", e);
         std::process::exit(1);
     }
 
+    let output_level = if args.quiet {
+        OutputLevel::Quiet
+    } else if args.verbose {
+        OutputLevel::Verbose
+    } else if args.debug {
+        OutputLevel::Debug
+    } else {
+        OutputLevel::Normal
+    };
+    let logger = OutputLogger::new(output_level);
+
+    let start_time = Utc::now();
+    logger.info(&format!("start at {}", start_time.format("%Y-%m-%d %H:%M:%S")));
+
     let mut failed_downloads = 0;
+
+    // Handle background mode
+    if args.background {
+        println!("Continuing in background (output to wget-log)");
+        let processor = BackgroundProcessor::new();
+        
+        if args.mirror {
+            if let Err(_e) = processor.process_mirror(&args).await {
+                std::process::exit(1);
+            }
+        } else if !args.urls.is_empty() {
+            failed_downloads += processor.process_urls(&args, &args.urls).await;
+        }
+        
+        if let Some(input_file) = &args.input_file {
+            match io::read_urls_from_file(input_file).await {
+                Ok(file_urls) => {
+                    if !file_urls.is_empty() {
+                        failed_downloads += processor.process_file_urls(&args, file_urls).await;
+                    }
+                }
+                Err(_) => std::process::exit(1),
+            }
+        }
+        
+        if failed_downloads > 0 {
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // Handle mirror mode
+    if args.mirror {
+        if let Err(e) = process_mirror_mode(&args).await {
+            eprintln!("Mirror failed: {}", e);
+            std::process::exit(1);
+        }
+        let end_time = Utc::now();
+        println!("finished at {}", end_time.format("%Y-%m-%d %H:%M:%S"));
+        return;
+    }
 
     // Process command line URLs sequentially (like real wget)
     if !args.urls.is_empty() {
@@ -59,7 +120,7 @@ async fn main() {
     }
 
     let end_time = Utc::now();
-    println!("finished at {}", end_time.format("%Y-%m-%d %H:%M:%S"));
+    logger.info(&format!("finished at {}", end_time.format("%Y-%m-%d %H:%M:%S")));
 
     // Exit with error code if any downloads failed (like real wget)
     if failed_downloads > 0 {
@@ -69,15 +130,22 @@ async fn main() {
 
 /// Process URLs sequentially (for command line URLs)
 async fn process_urls_sequentially(args: &cli::Cli, urls: &[String]) -> u32 {
-    let client = http::HttpClient::new();
+    let client = http::HttpClient::with_config(
+        args.rate_limit.as_deref(),
+        args.user_agent.clone(),
+        Some(args.tries),
+        args.timeout,
+    );
     let mut failed_count = 0;
 
     for url in urls {
         let file_path = determine_output_path(args, url);
 
-        match client.download_to_file(url, &file_path).await {
+        match client.download_to_file_with_resume(url, &file_path, args.continue_download, false).await {
             Ok(_) => {
-                println!("Downloaded [{}]", url);
+                if !args.quiet {
+                    println!("Downloaded [{}]", url);
+                }
             }
             Err(e) => {
                 eprintln!("Download failed for [{}]: {}", url, e);
@@ -135,6 +203,18 @@ async fn process_urls_concurrently(args: &cli::Cli, urls: Vec<String>) -> u32 {
     }
 
     failed as u32
+}
+
+/// Process mirror mode
+async fn process_mirror_mode(args: &cli::Cli) -> Result<(), Box<dyn std::error::Error>> {
+    let url = &args.urls[0]; // Validation ensures exactly one URL for mirror mode
+    println!("Starting mirror of: {}", url);
+    
+    let mut crawler = MirrorCrawler::new(url, args.directory_prefix.as_deref())?;
+    crawler.mirror(&args.reject_suffixes, &args.exclude_dirs).await?;
+    
+    println!("Mirror completed successfully");
+    Ok(())
 }
 
 fn determine_output_path(args: &cli::Cli, url: &str) -> PathBuf {
