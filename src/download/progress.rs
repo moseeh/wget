@@ -46,6 +46,7 @@ impl MultiProgressManager {
     }
 
     /// Updates progress for a specific URL
+    #[allow(dead_code)]
     pub async fn update_progress(&self, url: &str, downloaded: u64) {
         let bars = self.progress_bars.lock().await;
         if let Some(pb) = bars.get(url) {
@@ -66,6 +67,7 @@ impl MultiProgressManager {
     }
 
     /// Gets the multi-progress instance for manual management if needed
+    #[allow(dead_code)]
     pub fn get_multi_progress(&self) -> Arc<MultiProgress> {
         self.multi_progress.clone()
     }

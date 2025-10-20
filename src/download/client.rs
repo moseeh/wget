@@ -11,6 +11,7 @@ use tokio::io::AsyncWriteExt;
 #[derive(Debug)]
 pub struct DownloadResult {
     pub url: String,
+    #[allow(dead_code)]
     pub file_path: PathBuf,
     pub bytes_downloaded: u64,
     pub success: bool,
@@ -206,6 +207,7 @@ impl ConcurrentDownloadManager {
         }
     }
 
+    #[allow(dead_code)]
     async fn download_single_url(
         url: String,
         http_client: HttpClient,
@@ -240,6 +242,7 @@ impl ConcurrentDownloadManager {
         }
     }
 
+    #[allow(dead_code)]
     async fn perform_download(
         url: &str,
         file_path: &Path,
@@ -331,6 +334,7 @@ impl ConcurrentDownloadManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_progress_manager(&self) -> Arc<MultiProgressManager> {
         self.progress_manager.clone()
     }

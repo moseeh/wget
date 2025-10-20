@@ -26,7 +26,9 @@ impl Error for DownloadError {}
 pub struct HttpClient {
     client: Client,
     rate_limiter: Option<RateLimiter>,
+    #[allow(dead_code)]
     retry_policy: RetryPolicy,
+    #[allow(dead_code)]
     user_agent: Option<String>,
 }
 
@@ -104,6 +106,7 @@ impl HttpClient {
         Ok(response)
     }
 
+    #[allow(dead_code)]
     pub async fn download_to_file(
         &self,
         url: &str,
