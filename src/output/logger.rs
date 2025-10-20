@@ -21,18 +21,21 @@ impl OutputLogger {
         }
     }
 
+    #[allow(dead_code)]
     pub fn verbose(&self, msg: &str) {
         if self.level >= OutputLevel::Verbose {
             println!("{}", msg);
         }
     }
 
+    #[allow(dead_code)]
     pub fn debug(&self, msg: &str) {
         if self.level >= OutputLevel::Debug {
             println!("DEBUG: {}", msg);
         }
     }
 
+    #[allow(dead_code)]
     pub fn error(&self, msg: &str) {
         eprintln!("{}", msg);
     }

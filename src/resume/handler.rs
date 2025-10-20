@@ -20,6 +20,7 @@ impl ResumeHandler {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn should_resume(file_path: &Path) -> bool {
         file_path.exists() && Self::get_resume_position(file_path).await > 0
     }

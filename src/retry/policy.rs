@@ -3,7 +3,9 @@ use tokio::time::sleep;
 
 #[derive(Clone)]
 pub struct RetryPolicy {
+    #[allow(dead_code)]
     max_tries: u32,
+    #[allow(dead_code)]
     wait_retry: Duration,
 }
 
@@ -15,10 +17,12 @@ impl RetryPolicy {
         }
     }
 
+    #[allow(dead_code)]
     pub fn default() -> Self {
         Self::new(3, 1)
     }
 
+    #[allow(dead_code)]
     pub async fn execute<F, T, E>(&self, mut operation: F) -> Result<T, E>
     where
         F: FnMut() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T, E>> + Send>>,

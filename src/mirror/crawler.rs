@@ -96,6 +96,7 @@ impl MirrorCrawler {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn download_and_parse(&self, url: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         self.download_and_parse_internal(url, false, None).await
     }
