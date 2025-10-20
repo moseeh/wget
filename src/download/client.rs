@@ -39,23 +39,47 @@ impl ConcurrentDownloadManager {
         urls: Vec<String>,
         output_dir: Option<&Path>,
     ) -> Vec<DownloadResult> {
+        self.download_urls_internal(urls, output_dir, false).await
+    }
+
+    /// Silent version for background downloads
+    pub async fn download_urls_silent(
+        &self,
+        urls: Vec<String>,
+        output_dir: Option<&Path>,
+    ) -> Vec<DownloadResult> {
+        self.download_urls_internal(urls, output_dir, true).await
+    }
+
+    async fn download_urls_internal(
+        &self,
+        urls: Vec<String>,
+        output_dir: Option<&Path>,
+        silent: bool,
+    ) -> Vec<DownloadResult> {
         // Phase 1: Send all requests and collect responses
-        println!("Phase 1: Sending requests...");
+        if !silent {
+            println!("Phase 1: Sending requests...");
+        }
         let mut valid_responses = Vec::new();
         let mut results = Vec::new();
 
         for url in &urls {
-            println!("sending request to {}, awaiting response...", url);
+            if !silent {
+                println!("sending request to {}, awaiting response...", url);
+            }
 
             match self.http_client.download_silent(&url).await {
                 Ok(response) => {
                     let status = response.status();
-                    println!(
-                        "status {} {} for {}",
-                        status.as_u16(),
-                        status.canonical_reason().unwrap_or(""),
-                        url
-                    );
+                    if !silent {
+                        println!(
+                            "status {} {} for {}",
+                            status.as_u16(),
+                            status.canonical_reason().unwrap_or(""),
+                            url
+                        );
+                    }
 
                     if status.is_success() {
                         let content_length = response.content_length().unwrap_or(0);
@@ -73,7 +97,9 @@ impl ConcurrentDownloadManager {
                     }
                 }
                 Err(e) => {
-                    println!("failed to connect to {}: {}", url, e);
+                    if !silent {
+                        println!("failed to connect to {}: {}", url, e);
+                    }
                     // Failed request - add to results as failed
                     results.push(DownloadResult {
                         url: url.clone(),
@@ -88,10 +114,12 @@ impl ConcurrentDownloadManager {
 
         // Phase 2: Download all valid responses concurrently
         if !valid_responses.is_empty() {
-            println!(
-                "\nPhase 2: Starting {} concurrent downloads...",
-                valid_responses.len()
-            );
+            if !silent {
+                println!(
+                    "\nPhase 2: Starting {} concurrent downloads...",
+                    valid_responses.len()
+                );
+            }
 
             let semaphore = Arc::new(tokio::sync::Semaphore::new(self.max_concurrent));
             let mut download_tasks = Vec::new();
