@@ -1520,6 +1520,7 @@ dependencies = [
  "clap",
  "futures-util",
  "indicatif",
+ "libc",
  "regex",
  "reqwest",
  "tokio",
