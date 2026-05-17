@@ -25,7 +25,7 @@ impl MultiProgressManager {
         progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template(
-                    "{prefix:.bold.dim} {bytes}/{total_bytes} [{bar:40.cyan/red}] {eta_precise}",
+                    "{prefix:.bold.dim} {bytes}/{total_bytes} [{bar:40.cyan/red}] {percent:>3}% {bytes_per_sec} {eta}",
                 )
                 .unwrap()
                 .progress_chars("#>-"),
@@ -45,16 +45,6 @@ impl MultiProgressManager {
         pb
     }
 
-    /// Updates progress for a specific URL
-    #[allow(dead_code)]
-    pub async fn update_progress(&self, url: &str, downloaded: u64) {
-        let bars = self.progress_bars.lock().await;
-        if let Some(pb) = bars.get(url) {
-            pb.set_position(downloaded);
-        }
-    }
-
-    /// Marks a download as complete
     pub async fn finish_download(&self, url: &str, success: bool) {
         let mut bars = self.progress_bars.lock().await;
         if let Some(pb) = bars.remove(url) {
@@ -66,9 +56,4 @@ impl MultiProgressManager {
         }
     }
 
-    /// Gets the multi-progress instance for manual management if needed
-    #[allow(dead_code)]
-    pub fn get_multi_progress(&self) -> Arc<MultiProgress> {
-        self.multi_progress.clone()
-    }
 }
