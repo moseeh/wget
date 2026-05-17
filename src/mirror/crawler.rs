@@ -1,10 +1,17 @@
 use crate::http::HttpClient;
 use crate::mirror::parser;
 use crate::utils::url::extract_filename;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use url::Url;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AssetKind {
+    Html,
+    Css,
+    Other,
+}
 
 pub struct MirrorCrawler {
     client: HttpClient,
@@ -12,68 +19,49 @@ pub struct MirrorCrawler {
     queue: VecDeque<String>,
     base_url: Url,
     output_dir: PathBuf,
+    // url -> (local path, asset kind) — used by --convert-links
+    saved: HashMap<String, (PathBuf, AssetKind)>,
 }
 
 impl MirrorCrawler {
     pub fn new(base_url: &str, output_dir: Option<&Path>) -> Result<Self, Box<dyn std::error::Error>> {
         let parsed_url = Url::parse(base_url)?;
         let dir = output_dir.unwrap_or_else(|| Path::new(".")).to_path_buf();
-        
+
         Ok(MirrorCrawler {
             client: HttpClient::new(),
             visited: HashSet::new(),
             queue: VecDeque::new(),
             base_url: parsed_url,
             output_dir: dir,
+            saved: HashMap::new(),
         })
-    }
-
-    pub fn new_silent(base_url: &str, output_dir: Option<&Path>) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::new(base_url, output_dir)
     }
 
     pub async fn mirror(
         &mut self,
         reject_suffixes: &Option<String>,
         exclude_dirs: &Option<String>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        self.mirror_internal(reject_suffixes, exclude_dirs, false, None).await
-    }
-
-    pub async fn mirror_silent(
-        &mut self,
-        reject_suffixes: &Option<String>,
-        exclude_dirs: &Option<String>,
-        logger: &crate::background::BackgroundLogger,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        self.mirror_internal(reject_suffixes, exclude_dirs, true, Some(logger)).await
-    }
-
-    async fn mirror_internal(
-        &mut self,
-        reject_suffixes: &Option<String>,
-        exclude_dirs: &Option<String>,
-        silent: bool,
-        logger: Option<&crate::background::BackgroundLogger>,
+        convert_links: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.queue.push_back(self.base_url.to_string());
-        
+
         while let Some(url) = self.queue.pop_front() {
             if self.visited.contains(&url) {
                 continue;
             }
-            
+
             if parser::should_reject_file(&url, reject_suffixes) {
                 continue;
             }
-            
+
             if parser::should_exclude_directory(&url, exclude_dirs) {
                 continue;
             }
-            
+
             self.visited.insert(url.clone());
-            
-            match self.download_and_parse_internal(&url, silent, logger).await {
+
+            match self.download_and_parse(&url).await {
                 Ok(links) => {
                     for link in links {
                         if !self.visited.contains(&link) {
@@ -82,70 +70,116 @@ impl MirrorCrawler {
                     }
                 }
                 Err(e) => {
-                    if silent {
-                        if let Some(logger) = logger {
-                            logger.log_error(&url, &e.to_string());
-                        }
-                    } else {
-                        eprintln!("Failed to download {}: {}", url, e);
-                    }
+                    eprintln!("Failed to download {}: {}", url, e);
                 }
             }
         }
-        
+
+        if convert_links {
+            self.rewrite_links().await?;
+        }
         Ok(())
     }
 
-    #[allow(dead_code)]
-    async fn download_and_parse(&self, url: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        self.download_and_parse_internal(url, false, None).await
-    }
-
-    async fn download_and_parse_internal(
-        &self, 
-        url: &str, 
-        silent: bool, 
-        logger: Option<&crate::background::BackgroundLogger>
+    async fn download_and_parse(
+        &mut self,
+        url: &str,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let response = self.client.download_silent(url).await?;
+
+        // Determine asset kind from Content-Type before consuming the body
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let kind_from_header = if content_type.contains("text/html") || content_type.contains("application/xhtml") {
+            Some(AssetKind::Html)
+        } else if content_type.contains("text/css") {
+            Some(AssetKind::Css)
+        } else if content_type.is_empty() {
+            None
+        } else {
+            Some(AssetKind::Other)
+        };
+
         let file_path = self.get_local_path(url);
-        
-        // Create directory structure
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        
-        let content = response.text().await?;
-        
-        // Save file
-        fs::write(&file_path, &content).await?;
-        
-        if silent {
-            if let Some(logger) = logger {
-                logger.log(&format!("Downloaded: {} -> {}", url, file_path.display()));
+
+        // Always fetch as bytes — binary-safe
+        let bytes = response.bytes().await?;
+
+        // Fallback sniff if header didn't tell us
+        let kind = kind_from_header.unwrap_or_else(|| {
+            let head = std::str::from_utf8(&bytes[..bytes.len().min(512)])
+                .unwrap_or("")
+                .trim_start()
+                .to_ascii_lowercase();
+            if head.starts_with("<!doctype") || head.contains("<html") {
+                AssetKind::Html
+            } else {
+                AssetKind::Other
             }
-        } else {
-            println!("Downloaded: {} -> {}", url, file_path.display());
-        }
-        
-        // Extract links if it's HTML
-        let links = if self.is_html_content(url, &content) {
+        });
+
+        fs::write(&file_path, &bytes).await?;
+        self.saved.insert(url.to_string(), (file_path.clone(), kind));
+
+        println!("Downloaded: {} -> {}", url, file_path.display());
+
+        // Only parse HTML for new links to follow
+        let links = if kind == AssetKind::Html {
+            // Safe lossy decode for link extraction — HTML link attributes are ASCII
+            let content = String::from_utf8_lossy(&bytes);
             parser::extract_links(&content, &self.base_url)
         } else {
             Vec::new()
         };
-        
+
         Ok(links)
+    }
+
+    async fn rewrite_links(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Build url -> local path map for rewriting
+        let url_to_path: HashMap<&str, &Path> = self
+            .saved
+            .iter()
+            .map(|(u, (p, _))| (u.as_str(), p.as_path()))
+            .collect();
+
+        for (_url, (path, kind)) in &self.saved {
+            if *kind != AssetKind::Html && *kind != AssetKind::Css {
+                continue;
+            }
+            let raw = match fs::read(path).await {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            let content = String::from_utf8_lossy(&raw).into_owned();
+
+            let rewritten = match kind {
+                AssetKind::Html => parser::rewrite_html_links(&content, &self.base_url, path, &url_to_path),
+                AssetKind::Css => parser::rewrite_css_links(&content, &self.base_url, path, &url_to_path),
+                _ => continue,
+            };
+
+            fs::write(path, rewritten).await?;
+        }
+        Ok(())
     }
 
     fn get_local_path(&self, url: &str) -> PathBuf {
         if let Ok(parsed) = Url::parse(url) {
             let mut path = self.output_dir.clone();
-            
+
             if let Some(host) = parsed.host_str() {
                 path.push(host);
             }
-            
+
             let url_path = parsed.path();
             if url_path == "/" || url_path.is_empty() {
                 path.push("index.html");
@@ -154,23 +188,16 @@ impl MirrorCrawler {
                 for segment in segments {
                     path.push(segment);
                 }
-                
+
                 // If path doesn't have extension, treat as directory with index.html
                 if path.extension().is_none() {
                     path.push("index.html");
                 }
             }
-            
+
             path
         } else {
             self.output_dir.join(extract_filename(url))
         }
-    }
-
-    fn is_html_content(&self, url: &str, content: &str) -> bool {
-        url.ends_with(".html") || 
-        url.ends_with(".htm") || 
-        content.trim_start().starts_with("<!DOCTYPE") ||
-        content.contains("<html")
     }
 }
