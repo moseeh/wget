@@ -1,46 +1,46 @@
-# Mirror Module
+# `mirror` module
 
-This module implements website mirroring functionality for wget-rs, allowing recursive download of entire websites while maintaining directory structure.
+Recursive website mirroring for `--mirror`.
 
-## Features
+## Files
 
-- **Recursive crawling** - Follows links within the same domain
-- **Directory structure preservation** - Maintains website hierarchy locally
-- **File filtering** - Reject specific file types with `-R` flag
-- **Directory exclusion** - Skip specific directories with `-X` flag
-- **Same-domain restriction** - Only mirrors content from the target domain
+- `crawler.rs` — `MirrorCrawler`, the BFS engine. Owns the visited set, queue, and the URL → local-path map used by `--convert-links`.
+- `parser.rs` — link extraction, reject/exclude filters, and the HTML/CSS link rewriters.
+- `mod.rs` — re-exports.
 
-## Usage
+## Crawl flow
 
-```bash
-# Basic mirroring
-./wget --mirror https://example.com/
+1. Seed the queue with the starting URL.
+2. Pop a URL, skip if visited / rejected by `-R` / excluded by `-X`.
+3. Fetch via `HttpClient::download_silent`. The response is consumed as raw bytes (`response.bytes()`) so binary files survive intact.
+4. Classify the response as `Html`, `Css`, or `Other` — first by `Content-Type` header, then by a sniff of the first 512 bytes (`<!doctype`/`<html`). The classification is recorded so the rewrite pass can target HTML/CSS only.
+5. Write the body to a local path derived from the URL (`<output>/<host>/<path>`; bare directories get `index.html`).
+6. If the asset is HTML, extract links and enqueue.
+7. After the queue drains, if `--convert-links` is set, rewrite saved HTML/CSS to point at local files.
 
-# Mirror with file type filtering
-./wget --mirror -R jpg,gif,png https://example.com/
+## Link extraction
 
-# Mirror excluding specific directories
-./wget --mirror -X /tmp,/cache https://example.com/
+Per spec, only three tag/attribute pairs are followed:
 
-# Mirror to specific directory
-./wget --mirror -P ~/mirror/ https://example.com/
-```
+- `<a href="...">`
+- `<link href="...">`
+- `<img src="...">`
 
-## Architecture
+Other `href`/`src` attributes (`<script src>`, `<iframe src>`, …) are ignored. In-page anchors (`#…`) and `mailto:`/`javascript:`/`data:`/`tel:` URIs are skipped. Cross-domain links are skipped — only same-`domain` + same-`scheme` URLs are queued.
 
-### `crawler.rs`
-- `MirrorCrawler` - Main crawler that manages the download queue
-- Handles directory creation and file saving
-- Manages visited URLs to prevent infinite loops
+## `-R` reject
 
-### `parser.rs`
-- Link extraction from HTML content using regex
-- URL filtering and validation
-- File suffix and directory exclusion logic
+Reject is keyed on the path component's file extension after URL parsing, so `/img.jpg?v=2` is correctly identified as `.jpg`. Suffixes are case-insensitive and leading dots are tolerated (`-R=.jpg,gif`).
 
-## Limitations
+## `-X` exclude
 
-- Uses simple regex-based HTML parsing (not a full HTML parser)
-- Only follows same-domain links for security
-- No support for JavaScript-generated content
-- No robots.txt compliance checking
+Excludes path prefixes. `-X=/img,/cache` skips any URL whose path starts with `/img` or `/cache` (as a complete segment).
+
+## `--convert-links`
+
+After the crawl, every saved HTML and CSS file is read back and rewritten:
+
+- HTML: `href`/`src` on `<a>` / `<link>` / `<img>` whose absolute URL appears in the saved-URL map is rewritten to a path relative to the document's directory.
+- CSS: `url(...)` references receive the same treatment.
+
+Unresolved targets (external sites, schemes we don't handle, `data:` URIs, fragments) are left untouched.
