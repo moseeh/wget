@@ -1,31 +1,44 @@
-# `cli` Module — Argument Parsing for wget-rs
+# `cli` module
 
-This module provides the command-line interface for the `wget-rs` application. It defines the structure of supported flags and arguments using the [`clap`](https://docs.rs/clap) crate.
+Clap-based CLI parsing and post-parse validation.
 
-## Features
+## Files
 
-* Argument parsing using `#[derive(Parser)]`
-* Manual validation via `Cli::validate()`
-* Support for standard and advanced wget-like flags:
+- `args.rs` — defines the `Cli` struct (one field per flag) and `Cli::validate()`.
+- `mod.rs` — re-exports `Cli`.
 
-  * URLs and input files
-  * Output filename (`-O`) and download directory (`-P`)
-  * Background mode (`-B`)
-  * Rate limiting (`--rate-limit`)
-  * Website mirroring (`--mirror`) with additional filters:
+## Supported flags
 
-    * File type reject list (`-R`)
-    * Excluded directories (`-X`)
-    * Offline link conversion (`--convert-links`)
+| Field | Flag |
+|-------|------|
+| `urls` | positional URLs |
+| `output` | `-O`, `--output` |
+| `directory_prefix` | `-P`, `--directory-prefix` |
+| `background` | `-B`, `--background` |
+| `rate_limit` | `--rate-limit` |
+| `input_file` | `-i`, `--input-file` |
+| `mirror` | `--mirror` |
+| `reject_suffixes` | `-R`, `--reject-suffixes` |
+| `exclude_dirs` | `-X`, `--exclude-dirs` |
+| `convert_links` | `--convert-links` |
+| `continue_download` | `-c`, `--continue-download` |
+| `timeout` | `--timeout` (default `30`) |
+| `user_agent` | `--user-agent` |
 
-## Structure
+`-O` and `-P` are mutually exclusive (enforced by clap).
 
-* `cli/args.rs`: Defines the `Cli` struct and its fields using `clap`
-* `cli/mod.rs`: Exports the `Cli` struct for external use
+## Validation
 
-## How to Use
+`Cli::validate()` enforces what clap can't:
 
-In `main.rs`:
+- At least one of `urls` or `--input-file` must be supplied.
+- `--input-file` must exist.
+- `-P` directory must exist.
+- `--rate-limit` value must parse as `<num>`, `<num>k`, or `<num>M`.
+- `--mirror` requires exactly one URL.
+- `-R`, `-X`, `--convert-links` are only valid in combination with `--mirror`.
+
+## Usage
 
 ```rust
 use clap::Parser;
@@ -33,15 +46,10 @@ use crate::cli::Cli;
 
 fn main() {
     let args = Cli::parse();
-    args.validate().expect("Invalid arguments");
-
-    // Application logic follows
+    if let Err(e) = args.validate() {
+        eprintln!("Argument error: {}", e);
+        std::process::exit(1);
+    }
+    // ...
 }
 ```
-
-## Notes
-
-* `Cli::parse()` comes from the `Parser` trait, so be sure to `use clap::Parser`
-* `Cli::validate()` provides additional checks not enforced by `clap`, like ensuring paths exist or validating rate formats
-
-This module aims to keep CLI parsing declarative, clean, and aligned with real-world usage of wget.
