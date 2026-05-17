@@ -1,77 +1,35 @@
-# `utils` Module — Utility Functions for wget-rs
+# `utils` module
 
-This module provides utility functions and helper components used throughout the `wget-rs` application. It contains common functionality that supports various operations across different modules.
+Small helpers shared across modules.
 
-## Features
+## Files
 
-* URL parsing and filename extraction
-* File path manipulation utilities
-* Common helper functions for string processing
-* Cross-module utility support
-* Reusable components for consistent behavior
+- `url.rs` — `extract_filename`.
+- `path.rs` — `display_save_path`.
+- `mod.rs` — re-exports.
 
-## Structure
+## `url::extract_filename(url: &str) -> String`
 
-* `utils/url.rs`: URL manipulation and parsing utilities
-* `utils/mod.rs`: Exports utility functions
-
-## Core Components
-
-### URL Utilities (`utils/url.rs`)
-
-#### `extract_filename(url: &str) -> String`
-Extracts a filename from a URL for saving downloaded files:
-* **Input**: URL string (e.g., `"https://example.com/path/file.zip"`)
-* **Output**: Filename string (e.g., `"file.zip"`)
-* **Features**:
-  - Handles URLs with query parameters
-  - Provides fallback names for URLs without clear filenames
-  - Removes URL encoding from filenames
-  - Handles edge cases like trailing slashes
-
-## How to Use
+Returns a filename suitable for saving a downloaded URL. Parses with the `url` crate, takes the last non-empty segment of the path, and falls back to `index.html` for URLs with no usable filename (e.g. `https://example.com/`).
 
 ```rust
-use crate::utils::url::extract_filename;
-
-fn main() {
-    // Basic filename extraction
-    let filename = extract_filename("https://example.com/downloads/file.zip");
-    println!("Filename: {}", filename); // Output: "file.zip"
-
-    // URL with query parameters
-    let filename = extract_filename("https://example.com/file.pdf?version=1.2");
-    println!("Filename: {}", filename); // Output: "file.pdf"
-
-    // URL without clear filename
-    let filename = extract_filename("https://example.com/api/data");
-    println!("Filename: {}", filename); // Output: "data" or fallback name
-}
+extract_filename("https://example.com/path/file.zip") == "file.zip"
+extract_filename("https://example.com/")              == "index.html"
+extract_filename("https://example.com")               == "index.html"
 ```
 
-## Filename Extraction Logic
+## `path::display_save_path(p: &Path) -> String`
 
-1. **Parse URL**: Extract the path component from the URL
-2. **Remove Query**: Strip query parameters and fragments
-3. **Get Last Segment**: Take the last path segment as filename
-4. **Fallback Handling**: Provide default names for unclear cases
-5. **Sanitization**: Ensure filename is valid for filesystem
+Formats a destination path the way `wget` prints it on the `saving file to:` line:
 
-## Notes
+- Absolute paths are shown verbatim.
+- Paths with a non-empty parent are shown verbatim.
+- Bare filenames in the current directory get a `./` prefix.
 
-* Designed to work with various URL formats and edge cases
-* Provides consistent filename extraction across the application
-* Handles both absolute and relative URL scenarios
-* Integrates with file saving operations in HTTP and download modules
-* Extensible design allows for additional utility functions
+```rust
+display_save_path(Path::new("file.zip"))             == "./file.zip"
+display_save_path(Path::new("/tmp/file.zip"))        == "/tmp/file.zip"
+display_save_path(Path::new("sub/file.zip"))         == "sub/file.zip"
+```
 
-## Future Extensions
-
-This module can be extended with additional utilities such as:
-* File size formatting functions
-* Time/date formatting helpers
-* Path validation utilities
-* String sanitization functions
-* Configuration parsing helpers
-
-This module ensures consistent and reliable utility operations across wget-rs.
+The old code hard-coded `./{path}`, which produced strings like `./~/Downloads/meme.jpg` whenever the user passed `-P`. This helper fixes that.
