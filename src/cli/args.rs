@@ -70,26 +70,6 @@ pub struct Cli {
     #[arg(short = 'c', long, help = "Continue partial downloads")]
     pub continue_download: bool,
 
-    /// Number of retries (--tries)
-    #[arg(long, default_value = "3", help = "Number of retries on failure")]
-    pub tries: u32,
-
-    /// Wait time between retries (--waitretry)
-    #[arg(long, default_value = "1", help = "Wait seconds between retries")]
-    pub waitretry: u64,
-
-    /// Quiet mode (-q)
-    #[arg(short = 'q', long, help = "Quiet mode (no output)")]
-    pub quiet: bool,
-
-    /// Verbose mode (-v)
-    #[arg(short = 'v', long, help = "Verbose output")]
-    pub verbose: bool,
-
-    /// Debug mode (-d)
-    #[arg(short = 'd', long, help = "Debug output")]
-    pub debug: bool,
-
     /// Timeout in seconds (--timeout)
     #[arg(long, default_value = "30", help = "Timeout in seconds")]
     pub timeout: u64,
@@ -129,12 +109,6 @@ impl Cli {
             if !valid {
                 return Err("Rate limit must be a number or end with 'k'/'M' (e.g., 400k, 2M)".into());
             }
-        }
-
-        // Validate output level conflicts
-        let output_flags = [self.quiet, self.verbose, self.debug].iter().filter(|&&x| x).count();
-        if output_flags > 1 {
-            return Err("Only one of --quiet, --verbose, or --debug can be specified".into());
         }
 
         // Mirror mode validation
