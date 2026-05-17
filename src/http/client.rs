@@ -1,6 +1,5 @@
 use crate::rate::RateLimiter;
 use crate::resume::ResumeHandler;
-use crate::retry::RetryPolicy;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, Response};
 use std::error::Error;
@@ -26,21 +25,16 @@ impl Error for DownloadError {}
 pub struct HttpClient {
     client: Client,
     rate_limiter: Option<RateLimiter>,
-    #[allow(dead_code)]
-    retry_policy: RetryPolicy,
-    #[allow(dead_code)]
-    user_agent: Option<String>,
 }
 
 impl HttpClient {
     pub fn new() -> Self {
-        Self::with_config(None, None, None, 30)
+        Self::with_config(None, None, 30)
     }
 
     pub fn with_config(
         rate_limit: Option<&str>,
         user_agent: Option<String>,
-        tries: Option<u32>,
         timeout_secs: u64,
     ) -> Self {
         let client = Client::builder()
@@ -50,25 +44,24 @@ impl HttpClient {
             .unwrap();
 
         let rate_limiter = rate_limit.and_then(|r| RateLimiter::new(r).ok());
-        let retry_policy = RetryPolicy::new(tries.unwrap_or(3), 1);
 
-        HttpClient {
-            client,
-            rate_limiter,
-            retry_policy,
-            user_agent,
-        }
+        HttpClient { client, rate_limiter }
     }
     pub async fn download(&self, url: &str) -> Result<Response, DownloadError> {
         print!("sending request, awaiting response... ");
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
 
         let response = self
             .client
             .get(url)
             .send()
             .await
-            .map_err(|e| DownloadError {
-                message: format!("Failed to send request: {}", e),
+            .map_err(|e| {
+                println!();
+                DownloadError {
+                    message: format!("Failed to send request: {}", e),
+                }
             })?;
 
         let status = response.status();
@@ -106,75 +99,15 @@ impl HttpClient {
         Ok(response)
     }
 
-    #[allow(dead_code)]
-    pub async fn download_to_file(
-        &self,
-        url: &str,
-        file_path: &std::path::Path,
-    ) -> Result<u64, DownloadError> {
-        let response = self.download(url).await?;
-        let content_length = response.content_length().unwrap_or(0);
-        if content_length > 0 {
-            println!(
-                "content size: {} [~{:.2}MB]",
-                content_length,
-                content_length as f64 / 1_048_576.0
-            );
-        }
-        println!("saving file to: ./{}", file_path.display());
-
-        let progress_bar = ProgressBar::new(content_length);
-        progress_bar.set_style(
-            ProgressStyle::default_bar()
-                .template("{bytes}/{total_bytes} [{bar:80.cyan/red}] {eta_precise}")
-                .unwrap()
-                .progress_chars("#>-"),
-        );
-
-        let mut file = File::create(file_path).await.map_err(|e| DownloadError {
-            message: format!("Failed to create file: {}", e),
-        })?;
-
-        let mut stream = response.bytes_stream();
-        let mut download = 0u64;
-
-        use futures_util::StreamExt;
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| DownloadError {
-                message: format!("Failed to read chunk: {}", e),
-            })?;
-            file.write_all(&chunk).await.map_err(|e| DownloadError {
-                message: format!("Failed to write chunk: {}", e),
-            })?;
-            download += chunk.len() as u64;
-            progress_bar.set_position(download);
-        }
-        file.flush().await.map_err(|e| DownloadError {
-            message: format!("Failed to flush file: {}", e),
-        })?;
-
-        println!();
-        println!("Downloaded [{}]", url);
-        Ok(download)
-    }
-
-    pub async fn download_to_file_silent(
-        &self,
-        url: &str,
-        file_path: &std::path::Path,
-    ) -> Result<u64, DownloadError> {
-        self.download_to_file_with_resume(url, file_path, false, true).await
-    }
-
     pub async fn download_to_file_with_resume(
         &self,
         url: &str,
         file_path: &std::path::Path,
         resume: bool,
-        silent: bool,
+        show_progress: bool,
     ) -> Result<u64, DownloadError> {
         let mut rate_limiter = self.rate_limiter.clone();
-        
+
         let resume_pos = if resume {
             ResumeHandler::get_resume_position(file_path).await
         } else {
@@ -184,26 +117,24 @@ impl HttpClient {
         let response = if resume_pos > 0 {
             self.download_with_range(url, resume_pos).await?
         } else {
-            if silent { self.download_silent(url).await? } else { self.download(url).await? }
+            self.download(url).await?
         };
 
         let content_length = response.content_length().unwrap_or(0) + resume_pos;
-        if !silent && content_length > 0 {
+        if content_length > 0 {
             println!(
                 "content size: {} [~{:.2}MB]",
                 content_length,
                 content_length as f64 / 1_048_576.0
             );
         }
-        if !silent {
-            println!("saving file to: ./{}", file_path.display());
-        }
+        println!("saving file to: {}", crate::utils::path::display_save_path(file_path));
 
-        let progress_bar = if !silent {
+        let progress_bar = if show_progress {
             let pb = ProgressBar::new(content_length);
             pb.set_style(
                 ProgressStyle::default_bar()
-                    .template("{bytes}/{total_bytes} [{bar:80.cyan/red}] {eta_precise}")
+                    .template("{bytes}/{total_bytes} [{bar:80.cyan/red}] {percent:>3}% {bytes_per_sec} {eta}")
                     .unwrap()
                     .progress_chars("#>-"),
             );
@@ -252,10 +183,8 @@ impl HttpClient {
             pb.finish();
             println!();
         }
-        if !silent {
-            println!("Downloaded [{}]", url);
-        }
-        
+        println!("Downloaded [{}]", url);
+
         Ok(download - resume_pos)
     }
 
