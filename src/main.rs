@@ -1,22 +1,19 @@
-use background::BackgroundProcessor;
-use chrono::Utc;
+use chrono::Local;
 use clap::Parser;
 use download::ConcurrentDownloadManager;
 use mirror::MirrorCrawler;
-use output::{OutputLevel, OutputLogger};
 use std::path::PathBuf;
 
-mod background;
 mod cli;
 mod download;
 mod http;
 mod io;
 mod mirror;
-mod output;
 mod rate;
 mod resume;
-mod retry;
 mod utils;
+
+const BACKGROUND_ENV: &str = "WGET_IN_BACKGROUND";
 
 #[tokio::main]
 async fn main() {
@@ -26,114 +23,104 @@ async fn main() {
         std::process::exit(1);
     }
 
-    let output_level = if args.quiet {
-        OutputLevel::Quiet
-    } else if args.verbose {
-        OutputLevel::Verbose
-    } else if args.debug {
-        OutputLevel::Debug
-    } else {
-        OutputLevel::Normal
-    };
-    let logger = OutputLogger::new(output_level);
+    // -B handling: parent process re-execs self under setsid with stdout/stderr
+    // redirected to wget-log, then returns to the shell.
+    if args.background && std::env::var_os(BACKGROUND_ENV).is_none() {
+        match spawn_background() {
+            Ok(()) => {
+                println!("Output will be written to \"wget-log\".");
+                return;
+            }
+            Err(e) => {
+                eprintln!("Failed to start background process: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
-    let start_time = Utc::now();
-    logger.info(&format!("start at {}", start_time.format("%Y-%m-%d %H:%M:%S")));
+    // In background-child mode the progress bar would just spam the log file
+    // with carriage-return redraws — suppress it.
+    let in_background = std::env::var_os(BACKGROUND_ENV).is_some();
+    let show_progress = !in_background;
+
+    let start_time = Local::now();
+    println!("start at {}", start_time.format("%Y-%m-%d %H:%M:%S"));
 
     let mut failed_downloads = 0;
 
-    // Handle background mode
-    if args.background {
-        println!("Continuing in background (output to wget-log)");
-        let processor = BackgroundProcessor::new();
-        
-        if args.mirror {
-            if let Err(_e) = processor.process_mirror(&args).await {
-                std::process::exit(1);
-            }
-        } else if !args.urls.is_empty() {
-            failed_downloads += processor.process_urls(&args, &args.urls).await;
-        }
-        
-        if let Some(input_file) = &args.input_file {
-            match io::read_urls_from_file(input_file).await {
-                Ok(file_urls) => {
-                    if !file_urls.is_empty() {
-                        failed_downloads += processor.process_file_urls(&args, file_urls).await;
-                    }
-                }
-                Err(_) => std::process::exit(1),
-            }
-        }
-        
-        if failed_downloads > 0 {
-            std::process::exit(1);
-        }
-        return;
-    }
-
-    // Handle mirror mode
     if args.mirror {
         if let Err(e) = process_mirror_mode(&args).await {
             eprintln!("Mirror failed: {}", e);
             std::process::exit(1);
         }
-        let end_time = Utc::now();
-        println!("finished at {}", end_time.format("%Y-%m-%d %H:%M:%S"));
-        return;
-    }
+    } else {
+        if !args.urls.is_empty() {
+            failed_downloads += process_urls_sequentially(&args, &args.urls, show_progress).await;
+        }
 
-    // Process command line URLs sequentially (like real wget)
-    if !args.urls.is_empty() {
-        println!(
-            "Processing {} command line URLs sequentially...",
-            args.urls.len()
-        );
-        failed_downloads += process_urls_sequentially(&args, &args.urls).await;
-    }
-
-    // Process input file URLs concurrently (for efficiency)
-    if let Some(input_file) = &args.input_file {
-        match io::read_urls_from_file(input_file).await {
-            Ok(file_urls) => {
-                if !file_urls.is_empty() {
-                    println!(
-                        "Read {} URLs from file: {}",
-                        file_urls.len(),
-                        input_file.display()
-                    );
-                    println!("Processing file URLs concurrently...");
-                    failed_downloads += process_urls_concurrently(&args, file_urls).await;
+        if let Some(input_file) = &args.input_file {
+            match io::read_urls_from_file(input_file).await {
+                Ok(file_urls) => {
+                    if !file_urls.is_empty() {
+                        failed_downloads += process_urls_concurrently(&args, file_urls).await;
+                    }
                 }
-            }
-            Err(e) => {
-                eprintln!("Error reading URLs from file: {}", e);
-                std::process::exit(1);
+                Err(e) => {
+                    eprintln!("Error reading URLs from file: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
     }
 
-    // Check if we have any URLs to process
-    if args.urls.is_empty() && args.input_file.is_none() {
-        eprintln!("No URLs to download");
-        std::process::exit(1);
-    }
+    let end_time = Local::now();
+    println!("finished at {}", end_time.format("%Y-%m-%d %H:%M:%S"));
 
-    let end_time = Utc::now();
-    logger.info(&format!("finished at {}", end_time.format("%Y-%m-%d %H:%M:%S")));
-
-    // Exit with error code if any downloads failed (like real wget)
     if failed_downloads > 0 {
         std::process::exit(1);
     }
 }
 
-/// Process URLs sequentially (for command line URLs)
-async fn process_urls_sequentially(args: &cli::Cli, urls: &[String]) -> u32 {
+fn spawn_background() -> std::io::Result<()> {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+
+    let exe = std::env::current_exe()?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("wget-log")?;
+    let log_err = log.try_clone()?;
+
+    let mut cmd = Command::new(exe);
+    cmd.args(&args)
+        .env(BACKGROUND_ENV, "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(log_err));
+
+    unsafe {
+        cmd.pre_exec(|| {
+            // Detach from the controlling terminal so the child survives
+            // after the parent (the shell-invoked process) exits.
+            if libc::setsid() < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+
+    cmd.spawn()?;
+    Ok(())
+}
+
+async fn process_urls_sequentially(args: &cli::Cli, urls: &[String], show_progress: bool) -> u32 {
     let client = http::HttpClient::with_config(
         args.rate_limit.as_deref(),
         args.user_agent.clone(),
-        Some(args.tries),
         args.timeout,
     );
     let mut failed_count = 0;
@@ -141,96 +128,58 @@ async fn process_urls_sequentially(args: &cli::Cli, urls: &[String]) -> u32 {
     for url in urls {
         let file_path = determine_output_path(args, url);
 
-        match client.download_to_file_with_resume(url, &file_path, args.continue_download, false).await {
-            Ok(_) => {
-                if !args.quiet {
-                    println!("Downloaded [{}]", url);
-                }
-            }
-            Err(e) => {
-                eprintln!("Download failed for [{}]: {}", url, e);
-                failed_count += 1;
-            }
+        if let Err(e) = client
+            .download_to_file_with_resume(url, &file_path, args.continue_download, show_progress)
+            .await
+        {
+            eprintln!("Download failed for [{}]: {}", url, e);
+            failed_count += 1;
         }
     }
 
     failed_count
 }
 
-/// Process URLs concurrently (for input file URLs)
 async fn process_urls_concurrently(args: &cli::Cli, urls: Vec<String>) -> u32 {
     if urls.is_empty() {
         return 0;
     }
 
-    // Create concurrent download manager with reasonable concurrency limit
-    let max_concurrent = 4; // Can be made configurable later
-    let download_manager = ConcurrentDownloadManager::new(max_concurrent);
-
-    // Determine output directory
-    let output_dir = args.directory_prefix.as_deref();
-
-    // Start downloads
-    let results = download_manager.download_urls(urls, output_dir).await;
-
-    // Count failures and print summary
-    let successful = results.iter().filter(|r| r.success).count();
-    let failed = results.len() - successful;
-    let total_bytes: u64 = results.iter().map(|r| r.bytes_downloaded).sum();
-
-    println!("\nConcurrent Download Summary:");
-    println!("  Successful: {}", successful);
-    println!("  Failed: {}", failed);
-    println!(
-        "  Total bytes: {} ({:.2} MB)",
-        total_bytes,
-        total_bytes as f64 / 1_048_576.0
+    let download_manager = ConcurrentDownloadManager::with_config(
+        4,
+        args.rate_limit.as_deref(),
+        args.user_agent.clone(),
+        args.timeout,
     );
 
-    // Print failed downloads
-    if failed > 0 {
-        println!("\nFailed downloads:");
-        for result in results.iter().filter(|r| !r.success) {
-            println!(
-                "  {} - {}",
-                result.url,
-                result
-                    .error
-                    .as_ref()
-                    .unwrap_or(&"Unknown error".to_string())
-            );
-        }
-    }
+    let output_dir = args.directory_prefix.as_deref();
+    let results = download_manager.download_urls(urls, output_dir).await;
 
-    failed as u32
+    let urls_str: Vec<&str> = results.iter().map(|r| r.url.as_str()).collect();
+    println!("\nDownload finished: {:?}", urls_str);
+
+    results.iter().filter(|r| !r.success).count() as u32
 }
 
-/// Process mirror mode
 async fn process_mirror_mode(args: &cli::Cli) -> Result<(), Box<dyn std::error::Error>> {
-    let url = &args.urls[0]; // Validation ensures exactly one URL for mirror mode
-    println!("Starting mirror of: {}", url);
-    
+    let url = &args.urls[0];
     let mut crawler = MirrorCrawler::new(url, args.directory_prefix.as_deref())?;
-    crawler.mirror(&args.reject_suffixes, &args.exclude_dirs).await?;
-    
-    println!("Mirror completed successfully");
+    crawler
+        .mirror(&args.reject_suffixes, &args.exclude_dirs, args.convert_links)
+        .await?;
     Ok(())
 }
 
 fn determine_output_path(args: &cli::Cli, url: &str) -> PathBuf {
     if let Some(output) = &args.output {
-        // -O flag: use specified filename
         return output.clone();
     }
 
-    // Extract filename from URL
     let filename = utils::url::extract_filename(url);
 
     if let Some(dir) = &args.directory_prefix {
-        // -P flag: save to specified directory
         dir.join(filename)
     } else {
-        // Default: save to current directory
         PathBuf::from(filename)
     }
 }
