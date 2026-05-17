@@ -1,26 +1,32 @@
-# Resume Downloads Module
+# `resume` module
 
-This module implements partial download resumption using HTTP Range requests.
+HTTP Range helpers powering `-c` (continue partial download).
 
-## Features
+## Files
 
-- **Automatic resume detection** - Checks for existing partial files
-- **HTTP Range requests** - Uses standard Range header for resumption
-- **Progress tracking** - Correctly shows progress from resume point
+- `handler.rs` — `ResumeHandler` (associated functions only, no state).
+- `mod.rs` — re-export.
+
+## `ResumeHandler`
+
+```rust
+async fn get_resume_position(file_path: &Path) -> u64
+fn     create_range_header(start: u64) -> Option<String>
+```
+
+- `get_resume_position` returns the current size of `file_path`, or `0` if the file doesn't exist.
+- `create_range_header` returns `Some("bytes=<start>-")` when `start > 0`, otherwise `None`.
+
+## How it's wired
+
+`HttpClient::download_to_file_with_resume(url, path, resume=true, …)` calls `get_resume_position`, sends the request with the `Range` header when non-zero, opens the local file in append mode, and pre-positions the progress bar at the resume offset. A `206 Partial Content` response is accepted in addition to `200`.
 
 ## Usage
 
 ```bash
-# Resume a partial download
 ./wget -c https://example.com/largefile.zip
-
-# Works with rate limiting
 ./wget -c --rate-limit=1M https://example.com/largefile.zip
-
-# Resume works with all output options
 ./wget -c -P ~/Downloads/ https://example.com/largefile.zip
 ```
 
-## Implementation
-
-The `ResumeHandler` checks file size and creates appropriate Range headers. The HTTP client handles 206 Partial Content responses and appends to existing files.
+Note: the server must honour `Range` requests. If it doesn't, the file will be overwritten from scratch with `200 OK`.
