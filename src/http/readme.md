@@ -1,65 +1,41 @@
-# `http` Module — HTTP Client for wget-rs
+# `http` module
 
-This module provides HTTP client functionality for the `wget-rs` application. It handles HTTP/HTTPS requests, downloads, and response processing using the [`reqwest`](https://docs.rs/reqwest) crate.
+HTTP client built on top of [`reqwest`](https://docs.rs/reqwest), streaming responses to disk with optional rate limiting and resume.
 
-## Features
+## Files
 
-* Asynchronous HTTP client with connection pooling
-* Progress bar integration during downloads
-* Stream-based downloading for memory efficiency
-* Error handling with custom `DownloadError` type
-* Support for both silent and verbose request modes
-* Content-length detection and progress tracking
+- `client.rs` — `HttpClient` and `DownloadError`.
+- `mod.rs` — re-exports `HttpClient`.
 
-## Structure
-
-* `http/client.rs`: Main HTTP client implementation with `HttpClient` struct
-* `http/mod.rs`: Exports the HTTP client functionality
-
-## Core Components
-
-### `HttpClient`
-The main HTTP client struct that provides:
-* `new()`: Creates a new HTTP client instance
-* `download(url)`: Downloads a URL with progress display
-* `download_silent(url)`: Downloads a URL without progress messages
-* `download_to_file(url, path)`: Downloads directly to a specified file
-
-### `DownloadError`
-Custom error type for HTTP-related failures:
-* Network connection errors
-* HTTP status errors (4xx, 5xx)
-* File I/O errors during download
-
-## How to Use
+## `HttpClient`
 
 ```rust
-use crate::http::HttpClient;
+HttpClient::new()
+HttpClient::with_config(rate_limit: Option<&str>, user_agent: Option<String>, timeout_secs: u64)
 
-#[tokio::main]
-async fn main() {
-    let client = HttpClient::new();
-
-    // Download with progress display
-    match client.download("https://example.com/file.zip").await {
-        Ok(response) => {
-            // Process response stream
-        }
-        Err(e) => eprintln!("Download failed: {}", e),
-    }
-
-    // Download directly to file
-    let path = std::path::PathBuf::from("output.zip");
-    client.download_to_file("https://example.com/file.zip", &path).await?;
-}
+async fn download(&self, url: &str) -> Result<Response, DownloadError>
+async fn download_silent(&self, url: &str) -> Result<Response, DownloadError>
+async fn download_to_file_with_resume(
+    &self,
+    url: &str,
+    file_path: &Path,
+    resume: bool,
+    show_progress: bool,
+) -> Result<u64, DownloadError>
 ```
+
+- `download` prints `sending request, awaiting response... status N XX` to stdout.
+- `download_silent` is identical but emits no output — used by the concurrent path and the mirror crawler, which print their own context.
+- `download_to_file_with_resume` is the full workflow used by single-file downloads:
+  - Honours `resume` by reading the existing file size and sending `Range: bytes=N-`.
+  - When `show_progress` is `true`, draws an `indicatif` bar showing bytes, percentage, throughput, and ETA. Suppress it in background mode (`-B`) so the log file stays clean.
+  - Applies the rate limiter (if configured on the client) per streamed chunk.
+
+## `DownloadError`
+
+Wraps a single `String` message and implements `Display` and `std::error::Error`. Anywhere a network read, HTTP status check, or file write fails, the error is folded into this type with a context-prefixed message.
 
 ## Notes
 
-* Uses `reqwest::Client` internally for HTTP operations
-* Integrates with `indicatif` for progress bar display
-* Supports streaming downloads to handle large files efficiently
-* Automatically handles redirects and common HTTP headers
-* Thread-safe and can be cloned for concurrent use
-
-This module provides the core networking functionality that powers wget-rs downloads.
+- The underlying `reqwest::Client` is built once with the configured timeout and User-Agent; cloning `HttpClient` is cheap because both the inner client and the rate limiter are reference-counted / `Clone`.
+- For mirror mode the body is consumed in full via `response.bytes()` so binary files round-trip intact.
